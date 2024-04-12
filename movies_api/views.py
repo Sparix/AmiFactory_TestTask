@@ -18,6 +18,19 @@ class MovieListView(ListView):
     paginate_by = 5
     queryset = Movie.objects.all()
 
+    def get_queryset(self):
+        queryset = self.queryset
+
+        genre_id = self.request.GET.get("genre")
+        src = self.request.GET.get("src")
+        if genre_id:
+            queryset = queryset.filter(genres__id=int(genre_id))
+
+        if src:
+            queryset = queryset.filter(title__startswith=src)
+
+        return queryset
+
     def get(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         page_number = self.request.GET.get("page", 1)
