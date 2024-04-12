@@ -39,8 +39,8 @@ class Movie(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     title = models.CharField(max_length=100)
     description = models.TextField(max_length=5000, blank=True)
-    poster = models.ImageField(upload_to="images/poster/", null=True)
-    bg_picture = models.ImageField(upload_to="images/bg_picture/", null=True)
+    poster = models.ImageField(upload_to="images/poster/", null=True, blank=True)
+    bg_picture = models.ImageField(upload_to="images/bg_picture/", null=True, blank=True)
     release_year = models.IntegerField()
     mpa_rating = models.CharField(max_length=5, choices=MpaRatingChoices.choices)
     imdb_rating = models.DecimalField(
@@ -49,10 +49,10 @@ class Movie(models.Model):
         validators=[MinValueValidator(0.0), MaxValueValidator(10.0)],
     )
     duration = models.IntegerField()
-    genres = models.ManyToManyField(Genre, related_name="genres_movie")
-    directors = models.ManyToManyField(Person, related_name="directors_movie")
-    writers = models.ManyToManyField(Person, related_name="writers_movie")
-    stars = models.ManyToManyField(Person, related_name="stars_movie")
+    genres = models.ManyToManyField(Genre, related_name="genres_movie", blank=True)
+    directors = models.ManyToManyField(Person, related_name="directors_movie", blank=True)
+    writers = models.ManyToManyField(Person, related_name="writers_movie", blank=True)
+    stars = models.ManyToManyField(Person, related_name="stars_movie", blank=True)
 
     def __str__(self) -> str:
         return (
