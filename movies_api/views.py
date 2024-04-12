@@ -1,6 +1,6 @@
 from django.core.paginator import Paginator, EmptyPage
-from django.http import JsonResponse
-from django.views.generic import ListView
+from django.http import JsonResponse, Http404
+from django.views.generic import ListView, DetailView
 from movies_api.models import Movie, Genre
 
 
@@ -13,45 +13,7 @@ class GenreListView(ListView):
         return JsonResponse(data, safe=False)
 
 
-class MovieListView(ListView):
-    model = Movie
-    paginate_by = 5
-    queryset = Movie.objects.all()
-
-    def get_queryset(self):
-        queryset = self.queryset
-
-        genre_id = self.request.GET.get("genre")
-        src = self.request.GET.get("src")
-        if genre_id:
-            queryset = queryset.filter(genres__id=int(genre_id))
-
-        if src:
-            queryset = queryset.filter(title__startswith=src)
-
-        return queryset
-
-    def get(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        page_number = self.request.GET.get("page", 1)
-        paginator = Paginator(queryset, self.paginate_by)
-
-        try:
-            page_obj = paginator.page(page_number)
-        except EmptyPage:
-            return JsonResponse({"errors": ["page__out_of_bounds"]})
-
-        data = self.get_paginated_data(page_obj)
-        return JsonResponse(data)
-
-    def get_paginated_data(self, page_obj):
-        serialized_movies = [self.serialize_movie(movie) for movie in page_obj]
-        return {
-            "total": page_obj.paginator.count,
-            "pages": page_obj.paginator.num_pages,
-            "results": serialized_movies,
-        }
-
+class SerializeMovieMixin:
     def serialize_movie(self, movie):
         return {
             "id": movie.id,
@@ -83,3 +45,61 @@ class MovieListView(ListView):
             }
             for person in people
         ]
+
+
+class MovieListView(SerializeMovieMixin, ListView):
+    model = Movie
+    paginate_by = 5
+    queryset = Movie.objects.all()
+
+    def get_queryset(self):
+        queryset = self.queryset
+
+        genre_id = self.request.GET.get("genre")
+        src = self.request.GET.get("src")
+        if genre_id:
+            try:
+                queryset = queryset.filter(genres__id=int(genre_id))
+            except ValueError:
+                return JsonResponse({"error": ["genre__invalid"]}, status=400)
+
+        if src:
+            if len(src) < 2 or len(src) > 20:
+                return JsonResponse({"error": ["src__invalid"]}, status=400)
+
+            queryset = queryset.filter(title__startswith=src)
+
+        return queryset
+
+    def get(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        page_number = self.request.GET.get("page", 1)
+        paginator = Paginator(queryset, self.paginate_by)
+
+        try:
+            page_obj = paginator.page(page_number)
+        except EmptyPage:
+            return JsonResponse({"errors": ["page__out_of_bounds"]})
+
+        data = self.get_paginated_data(page_obj)
+        return JsonResponse(data)
+
+    def get_paginated_data(self, page_obj):
+        serialized_movies = [self.serialize_movie(movie) for movie in page_obj]
+        return {
+            "total": page_obj.paginator.count,
+            "pages": page_obj.paginator.num_pages,
+            "results": serialized_movies,
+        }
+
+
+class MovieDetailView(SerializeMovieMixin, DetailView):
+    model = Movie
+
+    def get(self, request, *args, **kwargs):
+        try:
+            movie = self.get_object()
+        except Http404:
+            return JsonResponse({"error": ["movie_not_found"]}, status=404)
+        serialized_movie = self.serialize_movie(movie)
+        return JsonResponse(serialized_movie)
