@@ -1,20 +1,22 @@
-from django.core.paginator import Paginator, EmptyPage
-from django.http import JsonResponse, Http404
+from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator, EmptyPage, Page
+from django.db.models import QuerySet
+from django.http import JsonResponse, Http404, HttpRequest
 from django.views.generic import ListView, DetailView
-from movies_api.models import Movie, Genre
+from movies_api.models import Movie, Genre, Person
 
 
 class GenreListView(ListView):
     model = Genre
     queryset = Genre.objects.all()
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request: HttpRequest, *args, **kwargs) -> JsonResponse:
         data = list(self.get_queryset().values("id", "title"))
         return JsonResponse(data, safe=False)
 
 
 class SerializeMovieMixin:
-    def serialize_movie(self, movie):
+    def serialize_movie(self, movie: Movie) -> dict:
         return {
             "id": movie.id,
             "title": movie.title,
@@ -32,11 +34,11 @@ class SerializeMovieMixin:
         }
 
     @staticmethod
-    def serialize_genres(genres):
+    def serialize_genres(genres: QuerySet[Genre]) -> list[dict]:
         return [{"id": genre.id, "title": genre.title} for genre in genres]
 
     @staticmethod
-    def serialize_people(people):
+    def serialize_people(people: QuerySet[Person]) -> list[dict]:
         return [
             {
                 "id": person.id,
@@ -50,32 +52,32 @@ class SerializeMovieMixin:
 class MovieListView(SerializeMovieMixin, ListView):
     model = Movie
     paginate_by = 5
-    queryset = Movie.objects.all()
+    queryset = Movie.objects.prefetch_related(
+        "genres", "directors", "writers", "stars"
+    )
 
-    def get_queryset(self):
-        queryset = self.queryset
-
+    def get(self, request: HttpRequest, *args, **kwargs):
         genre_id = self.request.GET.get("genre")
         src = self.request.GET.get("src")
+
+        genre_error = self.validate_genre_id(genre_id)
+        if genre_error:
+            return JsonResponse({"error": genre_error}, status=400)
+
+        src_error = self.validate_src(src)
+        if src_error:
+            return JsonResponse({"error": src_error}, status=400)
+
+        queryset = self.get_queryset()
         if genre_id:
-            try:
-                queryset = queryset.filter(genres__id=int(genre_id))
-            except ValueError:
-                return JsonResponse({"error": ["genre__invalid"]}, status=400)
+            queryset = queryset.filter(genres__id=int(genre_id))
 
         if src:
-            if len(src) < 2 or len(src) > 20:
-                return JsonResponse({"error": ["src__invalid"]}, status=400)
-
             queryset = queryset.filter(title__startswith=src)
 
-        return queryset
-
-    def get(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        page_number = self.request.GET.get("page", 1)
         paginator = Paginator(queryset, self.paginate_by)
 
+        page_number = self.request.GET.get("page", 1)
         try:
             page_obj = paginator.page(page_number)
         except EmptyPage:
@@ -84,7 +86,21 @@ class MovieListView(SerializeMovieMixin, ListView):
         data = self.get_paginated_data(page_obj)
         return JsonResponse(data)
 
-    def get_paginated_data(self, page_obj):
+    @staticmethod
+    def validate_genre_id(genre_id: id) -> None | str:
+        if genre_id:
+            try:
+                int(genre_id)
+            except ValueError:
+                return "Invalid genre ID"
+
+    @staticmethod
+    def validate_src(src: str) -> None | str:
+        if src:
+            if not (2 <= len(src) <= 20):
+                return "Invalid 'src' parameter length"
+
+    def get_paginated_data(self, page_obj: Page) -> dict:
         serialized_movies = [self.serialize_movie(movie) for movie in page_obj]
         return {
             "total": page_obj.paginator.count,
@@ -96,7 +112,7 @@ class MovieListView(SerializeMovieMixin, ListView):
 class MovieDetailView(SerializeMovieMixin, DetailView):
     model = Movie
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request: HttpRequest, *args, **kwargs) -> JsonResponse:
         try:
             movie = self.get_object()
         except Http404:
