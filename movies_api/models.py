@@ -1,5 +1,8 @@
+from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from django.db.models import QuerySet
+from django.urls import reverse
 
 
 class Genre(models.Model):
@@ -60,3 +63,33 @@ class Movie(models.Model):
             f"imdb_rating: {self.imdb_rating}"
             f"duration: {self.duration}"
         )
+
+    def serialize(self) -> dict:
+        return {
+            "id": self.id,
+            "title": self.title,
+            "description": self.description,
+            "release_year": self.release_year,
+            "mpa_rating": self.mpa_rating,
+            "imdb_rating": float(self.imdb_rating),
+            "duration": self.duration,
+            "poster": self.poster.name if self.poster else "",
+            "bg_picture": self.bg_picture.name if self.bg_picture else "",
+            "genres": [
+                {"id": genre.id, "title": genre.title} for genre in self.genres.all()
+            ],
+            "directors": self.serialize_people(self.directors.all()),
+            "writers": self.serialize_people(self.writers.all()),
+            "stars": self.serialize_people(self.stars.all()),
+        }
+
+    @staticmethod
+    def serialize_people(people: QuerySet[Person]) -> list[dict]:
+        return [
+            {
+                "id": person.id,
+                "first_name": person.first_name,
+                "last_name": person.last_name,
+            }
+            for person in people
+        ]
