@@ -12,7 +12,8 @@
     - On macOS and Linux: `source venv/bin/activate`
 4. Install the required dependencies `pip install -r requirements.txt`.
 5. Run migration `python manage.py migrate`
-6. Run the Django server `python manage.py runserver`.
+6. Download the initial data from the fixtures `python manage.py loaddata fixtures_db.json`
+7. Run the Django server `python manage.py runserver`.
 
 ### Available links:
 
