@@ -1,5 +1,8 @@
+from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from django.db.models import QuerySet
+from django.urls import reverse
 
 
 class Genre(models.Model):
@@ -39,8 +42,8 @@ class Movie(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     title = models.CharField(max_length=100)
     description = models.TextField(max_length=5000, blank=True)
-    poster = models.ImageField(upload_to="images/poster/", null=True, blank=True)
-    bg_picture = models.ImageField(upload_to="images/bg_picture/", null=True, blank=True)
+    poster = models.ImageField(upload_to="poster/", null=True, blank=True)
+    bg_picture = models.ImageField(upload_to="bg_picture/", null=True, blank=True)
     release_year = models.IntegerField()
     mpa_rating = models.CharField(max_length=5, choices=MpaRatingChoices.choices)
     imdb_rating = models.DecimalField(
@@ -54,9 +57,42 @@ class Movie(models.Model):
     writers = models.ManyToManyField(Person, related_name="writers_movie", blank=True)
     stars = models.ManyToManyField(Person, related_name="stars_movie", blank=True)
 
+    class Meta:
+        ordering = ['id']
+
     def __str__(self) -> str:
         return (
             f"name: {self.title}"
             f"imdb_rating: {self.imdb_rating}"
             f"duration: {self.duration}"
         )
+
+    def serialize(self) -> dict:
+        return {
+            "id": self.id,
+            "title": self.title,
+            "description": self.description,
+            "release_year": self.release_year,
+            "mpa_rating": self.mpa_rating,
+            "imdb_rating": float(self.imdb_rating),
+            "duration": self.duration,
+            "poster": self.poster.url if self.poster else "",
+            "bg_picture": self.bg_picture.url if self.bg_picture else "",
+            "genres": [
+                {"id": genre.id, "title": genre.title} for genre in self.genres.all()
+            ],
+            "directors": self.serialize_people(self.directors.all()),
+            "writers": self.serialize_people(self.writers.all()),
+            "stars": self.serialize_people(self.stars.all()),
+        }
+
+    @staticmethod
+    def serialize_people(people: QuerySet[Person]) -> list[dict]:
+        return [
+            {
+                "id": person.id,
+                "first_name": person.first_name,
+                "last_name": person.last_name,
+            }
+            for person in people
+        ]
