@@ -57,6 +57,9 @@ class Movie(models.Model):
     writers = models.ManyToManyField(Person, related_name="writers_movie", blank=True)
     stars = models.ManyToManyField(Person, related_name="stars_movie", blank=True)
 
+    class Meta:
+        ordering = ['id']
+
     def __str__(self) -> str:
         return (
             f"name: {self.title}"
