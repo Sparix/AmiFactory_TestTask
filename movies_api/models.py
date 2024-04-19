@@ -42,8 +42,8 @@ class Movie(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     title = models.CharField(max_length=100)
     description = models.TextField(max_length=5000, blank=True)
-    poster = models.ImageField(upload_to="images/poster/", null=True, blank=True)
-    bg_picture = models.ImageField(upload_to="images/bg_picture/", null=True, blank=True)
+    poster = models.ImageField(upload_to="poster/", null=True, blank=True)
+    bg_picture = models.ImageField(upload_to="bg_picture/", null=True, blank=True)
     release_year = models.IntegerField()
     mpa_rating = models.CharField(max_length=5, choices=MpaRatingChoices.choices)
     imdb_rating = models.DecimalField(
@@ -76,8 +76,8 @@ class Movie(models.Model):
             "mpa_rating": self.mpa_rating,
             "imdb_rating": float(self.imdb_rating),
             "duration": self.duration,
-            "poster": self.poster.name if self.poster else "",
-            "bg_picture": self.bg_picture.name if self.bg_picture else "",
+            "poster": self.poster.url if self.poster else "",
+            "bg_picture": self.bg_picture.url if self.bg_picture else "",
             "genres": [
                 {"id": genre.id, "title": genre.title} for genre in self.genres.all()
             ],
